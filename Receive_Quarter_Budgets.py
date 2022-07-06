@@ -20,7 +20,7 @@ budgets_sent = int(input("How many budgets were sent out?: "))
 print("*" * 60)
 
 
-path = fr"P:\PACS\Finance\Budgets\{folder}\Received\*"
+path = fr"P:\PACS\Finance\Budgets\{folder}\Received\*.xlsx"
 final_wb = xw.Book()
 
 try:
