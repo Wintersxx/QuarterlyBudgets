@@ -1,0 +1,78 @@
+import re
+import duckdb
+import pandas as pd
+from glob import glob
+import os
+from openpyxl import Workbook
+
+
+def create_excel_in_folder(folder_path, master_xl_file):
+    # Check if the folder exists, if not, create it
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+
+    # Combine folder path and file name
+    excel_file_path = os.path.join(folder_path, master_xl_file)
+
+    # Create a new Workbook object
+    wb = Workbook()
+
+##############
+print("To access Folder")
+folder = str(input("Enter \"YYYY Quarter #\": "))
+
+"""Start date needs to equal the input"""
+
+print("To verify forecast integrity")
+start_date = str(input("Start date for this forecast period \"YYYY-MM-DD\": "))
+
+print("*" * 40)
+
+##############
+folder_path = fr"P:\PACS\Finance\Budgets\{folder}"
+master_xl_file = fr"{folder}_KPI.xlsx"
+research_path = fr"P:\PACS\Finance\Budgets\{folder}\Received\*.xlsx"
+create_excel_in_folder(folder_path, master_xl_file)
+
+##############
+
+conn = duckdb.connect(database=':memory:', read_only=False)
+conn.execute('INSTALL spatial;')
+conn.execute('LOAD spatial;')
+
+kpi = []
+
+for file in glob(research_path):
+    print(file)
+    query_str = fr"""SELECT * FROM st_read('{file}', layer='REPORTING');"""
+    df = conn.query(query_str).df()
+    facility_name = df.iloc[0, 0]
+    facility_name = re.sub(r'[^\w\s]', '', facility_name)
+    NOI = df.iloc[168, 2:14].values
+    occupancy = df.iloc[248, 14]
+    start_month = df.iloc[4, 2]
+    month_range = df.iloc[4, 2:14].values
+    bed_count = df.iloc[181, 14]
+
+    # Create DataFrame for current file
+    df1 = pd.DataFrame({
+        'Facility': [facility_name],
+        'Occupancy': [occupancy],
+        'Bed_Count': [bed_count],
+
+    })
+
+    # Create DataFrame for monthly NOI
+    df_monthly_NOI = pd.DataFrame([NOI], columns=month_range)
+
+    # Concatenate DataFrames along columns
+    df2 = pd.concat([df1, df_monthly_NOI], axis=1)
+
+    kpi.append(df2)
+
+# Concatenate all DataFrames in the list along rows
+final_df = pd.concat(kpi, ignore_index=True)
+
+final_df.to_csv(fr"{folder_path}\Forecast_KPI.csv", index=False)
+
+print('done')
